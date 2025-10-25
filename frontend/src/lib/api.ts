@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { ChatResponse, SearchResponse } from '../types/chat'
 
 const api = axios.create({
   baseURL: '',
@@ -36,9 +37,9 @@ export const documents = {
 
 export const chat = {
   query: (query: string, top_k: number = 5) =>
-    api.post('/chat', { query, top_k }),
+    api.post<ChatResponse>('/chat', { query, top_k }),
   search: (query: string, top_k: number = 5) =>
-    api.post('/search', { query, top_k }),
+    api.post<SearchResponse>('/search', { query, top_k }),
 }
 
 export const ingest = {
