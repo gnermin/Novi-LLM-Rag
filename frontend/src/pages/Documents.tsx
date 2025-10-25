@@ -21,6 +21,8 @@ export default function Documents() {
   const [uploading, setUploading] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [success, setSuccess] = useState('')
 
   const fetchDocuments = async () => {
     try {
@@ -40,6 +42,7 @@ export default function Documents() {
   const handleFileSelect = async (file: File) => {
     setUploading(true)
     setError('')
+    setSuccess('')
 
     try {
       const response = await documents.upload(file)
@@ -49,6 +52,50 @@ export default function Documents() {
       setError(err.response?.data?.detail || 'Upload failed')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleDelete = async (docId: string) => {
+    if (!confirm('Da li ste sigurni da želite obrisati ovaj dokument? Svi chunk-ovi i veze će biti trajno obrisani.')) {
+      return
+    }
+
+    setDeleting(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await documents.delete(docId)
+      setSuccess(response.data.message)
+      setDocs(docs.filter(d => d.id !== docId))
+      if (selectedDoc?.id === docId) {
+        setSelectedDoc(null)
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Brisanje nije uspjelo')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (!confirm(`Da li ste sigurni da želite obrisati SVE dokumente (${docs.length})? Svi chunk-ovi i veze će biti trajno obrisani. Ova akcija se ne može poništiti!`)) {
+      return
+    }
+
+    setDeleting(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await documents.deleteAll()
+      setSuccess(response.data.message)
+      setDocs([])
+      setSelectedDoc(null)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Brisanje nije uspjelo')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -67,8 +114,25 @@ export default function Documents() {
               </div>
             )}
 
+            {success && (
+              <div className="bg-green-50 text-green-600 p-4 rounded-lg">
+                ✅ {success}
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Vaši Dokumenti</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-slate-900">Vaši Dokumenti ({docs.length})</h2>
+                {docs.length > 0 && (
+                  <button
+                    onClick={handleDeleteAll}
+                    disabled={deleting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    {deleting ? '⏳ Brisanje...' : '🗑️ Obriši Sve'}
+                  </button>
+                )}
+              </div>
               
               {docs.length === 0 ? (
                 <p className="text-slate-500 text-center py-8">Još nema dokumenata. Učitajte jedan da počnete!</p>
@@ -77,24 +141,37 @@ export default function Documents() {
                   {docs.map((doc) => (
                     <div
                       key={doc.id}
-                      onClick={() => setSelectedDoc(doc)}
-                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      className={`p-4 rounded-lg border transition-all ${
                         selectedDoc?.id === doc.id
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                        <div className="flex-1 cursor-pointer" onClick={() => setSelectedDoc(doc)}>
                           <h3 className="font-medium text-slate-900">{doc.filename}</h3>
                           <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
                             {doc.file_size && <span>{formatBytes(doc.file_size)}</span>}
                             <span>{formatDate(doc.created_at)}</span>
+                            {doc.metadata?.chunks && <span>📦 {doc.metadata.chunks} chunk-ova</span>}
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(doc.status)}`}>
-                          {doc.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(doc.status)}`}>
+                            {doc.status}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(doc.id)
+                            }}
+                            disabled={deleting}
+                            className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                            title="Obriši dokument"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
