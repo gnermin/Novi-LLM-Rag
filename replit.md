@@ -4,6 +4,19 @@
 **Version**: 1.0.0  
 **Last Updated**: October 25, 2025
 
+## Recent Changes
+
+### October 25, 2025 - Multi-Agent RAG Query Pipeline
+**Implementiran napredni LLM multi-agentni sistem za chat/query funkcionalnost:**
+- 5 novih agenata: PlannerAgent, RewriterAgent, GenerationAgent, JudgeAgent, SummarizerAgent
+- RRF (Reciprocal Rank Fusion) hibridna pretraga kombinuje vector i text search rezultate
+- Chat endpoint sada vraća `verdict` dict sa ok/needs_more/notes od Judge agenta
+- Optional summary field za sažete odgovore
+- Backward compatible API responses (postojeći klijenti nastavljaju da rade)
+- Embeddings fallback za development bez OpenAI API ključa
+- Novi ENV parametri: CHAT_MODEL, AGENT_REWRITES, JUDGE_STRICTNESS
+- Kompletna dokumentacija u backend/.env.example
+
 ## Overview
 
 Multi-RAG is a comprehensive Retrieval-Augmented Generation (RAG) system featuring a multi-agent document processing pipeline, SQL data ingestion, and intelligent chat with citations. The system processes various document types (PDF, DOCX, Excel, CSV, images) through specialized AI agents and enables natural language queries over the indexed content.
@@ -40,10 +53,27 @@ Connect to external databases and ingest data:
 - Embeds and indexes data alongside documents
 - Environment variables: `EXTERNAL_DB_URL`, `SQL_INGEST_QUERY`, `SQL_INGEST_BATCH_SIZE`
 
-### 3. Hybrid Search & RAG Chat
-- **Hybrid Search**: Combines BM25 text search with pgvector cosine similarity
-- **RAG Chat**: GPT-3.5-turbo generates answers with citations
-- **Citations**: Each answer includes source documents with similarity scores
+### 3. Multi-Agent RAG Chat & Hybrid Search
+
+**Multi-Agent Query Pipeline** (NEW):
+- **PlannerAgent**: Strategija pretrage i rewrites konfiguracija
+- **RewriterAgent**: Parafrazira upit u k varijanti za federated search
+- **Hybrid Search + RRF**: Reciprocal Rank Fusion kombinuje vector + text rezultate
+- **GenerationAgent**: Generiše odgovor na osnovu retrieved chunks-a
+- **JudgeAgent**: Evaluira kvalitet odgovora, opciono iterira za dodatni kontekst
+- **SummarizerAgent**: Kreira sažetak odgovora (opciono)
+
+**Query Flow**: Planner → Rewriter → Multi-Query Search → RRF Merge → Generation → Judge → (Optional) Summarizer
+
+**Hybrid Search**: 
+- Kombinuje BM25 full-text i pgvector cosine similarity
+- RRF (Reciprocal Rank Fusion) rangira i spaja rezultate
+- Podržava query rewrites za poboljšanu recall
+
+**RAG Chat**: 
+- GPT-4o-mini generiše odgovore sa citatima
+- Verdict dict pokazuje ok/needs_more/notes iz Judge-a
+- Citations uključuju chunk_id, document_id, filename, content, score, metadata
 
 ### 4. Modern Frontend
 - Drag-and-drop document upload with real-time processing status
@@ -79,7 +109,8 @@ ingest_jobs (id, document_id, status, logs, error, started_at, completed_at)
 - `GET /documents/{id}` - Get document details with agent logs
 
 ### Chat & Search
-- `POST /chat` - RAG chat with citations
+- `POST /chat` - Multi-agent RAG chat sa verdict i citations (backward compatible)
+  - Response: `{answer, citations[], query, verdict{ok, needs_more, notes}, summary?}`
 - `POST /search` - Hybrid search over all indexed content
 
 ### SQL Ingestion
@@ -100,6 +131,13 @@ SESSION_SECRET=your-secret-key
 
 # OpenAI
 OPENAI_API_KEY=sk-...
+CHAT_MODEL=gpt-4o-mini
+EMBEDDINGS_MODEL=text-embedding-3-small
+
+# RAG Configuration (NEW)
+RAG_TOP_K=5
+AGENT_REWRITES=2
+JUDGE_STRICTNESS=medium
 
 # Embeddings Configuration
 EMBEDDINGS_PROVIDER=openai
@@ -165,8 +203,8 @@ multi-rag/
 │   │   ├── models/ (SQLAlchemy models)
 │   │   ├── schemas/ (Pydantic schemas)
 │   │   ├── api/ (FastAPI routes)
-│   │   ├── services/ (pipeline, search, RAG)
-│   │   └── agents/ (processing agents)
+│   │   ├── services/ (rag_pipeline, search, llm_client, prompting)
+│   │   └── agents/ (planner, rewriter, generation, judge, summarizer + ingest agents)
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
