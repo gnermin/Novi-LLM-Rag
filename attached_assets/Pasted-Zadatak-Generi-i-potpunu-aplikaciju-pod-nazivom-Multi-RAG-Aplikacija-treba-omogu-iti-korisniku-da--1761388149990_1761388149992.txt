@@ -1,0 +1,266 @@
+Zadatak:
+Generiši potpunu aplikaciju pod nazivom Multi-RAG.
+Aplikacija treba omogućiti korisniku da:
+
+Uploaduje dokumente (PDF, DOCX, XLSX, CSV, JPG, PNG)
+
+Obradi ih kroz multi-agentni AI pipeline
+
+Spoji se na eksternu bazu i povuče podatke preko SQL upita (SQLIngestAgent)
+
+Sačuva sve u Postgres/pgvector
+
+Omogući RAG pretragu i chat s citatima
+
+Ima moderan, responzivan React+Tailwind frontend
+
+🔧 Tehnologije
+
+Backend: FastAPI (Python 3.11)
+
+Baza: PostgreSQL 16 + pgvector + uuid-ossp
+
+Queue/Async: Redis + RQ (worker pattern)
+
+Frontend: React + TypeScript + Vite + Tailwind + Shadcn UI stil
+
+Proxy: Nginx
+
+Deployment: Docker Compose (sa 6 servisa)
+
+🏗️ Struktura direktorija
+multi-rag/
+├─ docker-compose.yml
+├─ .env.example
+├─ db/init/
+│  ├─ 00_init.sql
+│  └─ 01_pgvector.sql
+├─ backend/
+│  ├─ Dockerfile
+│  ├─ requirements.txt
+│  └─ app/
+│     ├─ main.py
+│     ├─ core/ (config.py, db.py, security.py)
+│     ├─ models/ (user.py, document.py, chunk.py, relation.py, external_source.py)
+│     ├─ schemas/ (auth.py, document.py, chat.py, ingest.py)
+│     ├─ api/ (routes_auth.py, routes_documents.py, routes_chat.py, routes_ingest.py)
+│     ├─ services/ (pipeline.py, search.py, rag_pipeline.py, embedding.py)
+│     └─ agents/
+│        ├─ base.py, types.py
+│        ├─ mime_detect.py, layout.py, text_extract.py, ocr.py
+│        ├─ table.py, pii.py, chunking.py, relations.py
+│        ├─ image_extract.py, figure_classifier.py, caption.py
+│        ├─ embedding.py, indexing.py
+│        └─ sql_ingest.py   ← 🔥 novi agent
+└─ frontend/
+   ├─ Dockerfile
+   ├─ index.html
+   ├─ tailwind.config.ts
+   ├─ postcss.config.js
+   ├─ tsconfig.json
+   └─ src/
+      ├─ main.tsx
+      ├─ styles.css
+      ├─ lib/{api.ts, utils.ts}
+      ├─ ui/AppLayout.tsx
+      ├─ pages/{Home.tsx, Documents.tsx, Chat.tsx, Settings.tsx}
+      └─ components/{FileDropzone.tsx, AgentTrace.tsx, ChatWindow.tsx}
+
+🧩 Backend – Agentni pipeline
+
+Osnovni agenti (redoslijed):
+
+MimeDetectAgent – detekcija tipa fajla
+
+LayoutAgent – analiza PDF strukture
+
+ImageExtractAgent – izvlačenje slika
+
+FigureClassifierAgent – dijagram vs. foto
+
+CaptionAgent – prepoznavanje natpisa
+
+TextExtractAgent – ekstrakcija teksta
+
+OCRAgent – prepoznavanje teksta iz slika
+
+TableAgent – tabele (Camelot/pdfplumber/pandas)
+
+PIIComplianceAgent – maskiranje ličnih podataka
+
+ChunkingAgent – segmentacija teksta
+
+RelationAgent – veze tekst↔slika↔tabela
+
+EmbeddingAgent – embedding (OpenAI/lokalni)
+
+IndexingAgent – indeksiranje u pgvector
+
+SQLIngestAgent (🔥 NOVO) – konektuje se na eksternu bazu, izvršava SELECT,
+pretvara redove u chunkove i sprema u lokalni Postgres
+
+🧠 Novi agent: SQLIngestAgent
+
+Funkcija:
+
+Spaja se na EXTERNAL_DB_URL (npr. DB2, MySQL, MSSQL, Postgres)
+
+Izvršava SELECT upit (SQL_INGEST_QUERY iz .env ili iz API poziva)
+
+Rezultate serijalizuje po redovima u document_chunks
+
+Kreira novi zapis u documents tabeli (filename="SQL:source")
+
+Pokreće EmbeddingAgent i IndexingAgent za RAG integraciju
+
+ENV:
+
+EXTERNAL_DB_URL=postgresql+psycopg://user:pass@remote_host/db
+SQL_INGEST_QUERY=SELECT * FROM public.sample LIMIT 100
+SQL_INGEST_BATCH_SIZE=500
+
+
+API:
+
+POST /ingest/sql
+Body: { "source_name": "DWH_Customers", "query": "SELECT * FROM customers LIMIT 200" }
+
+🗄️ Baza i tabele
+
+users (id, email, password_hash)
+
+documents (id, filename, status, created_at, created_by)
+
+document_chunks (id, document_id, chunk_index, content, metadata jsonb, embedding vector(1536))
+
+document_relations (id, document_id, source_ref, target_ref, type, score)
+
+external_sources (id, name, query, created_at)
+
+ingest_jobs (id, document_id, status, logs jsonb, error text)
+
+Statusi: pending → processing → ready | error
+
+Indexi:
+
+ivfflat na embedding vector_cosine_ops
+
+GIN index na to_tsvector('simple', content)
+
+🔍 Pretraga i RAG chat
+
+/search → BM25 + pgvector hibrid
+
+/chat → prima {query, top_k}; vraća {answer, citations}
+
+Citati se vežu na document_chunks.id
+
+⚙️ Pipeline scenariji
+Scenario	Ulaz	Agenti	Opis
+A	Tekstualni PDF/DOCX	Mime→Layout→TextExtract→Chunk→Embedding→Index	Klasičan dokument
+B	Skenirani PDF	Mime→Layout→ImageExtract→OCR→Chunk→Embedding→Index	OCR dokument
+C	PDF s tabelama/slikama	Mime→Layout→TextExtract→Table→ImageExtract→Relation→Chunk→Embedding→Index	Strukturalno bogat dokument
+D	Samo slike	Mime→OCR→Chunk→Embedding→Index	Sken/Foto
+E	Excel/CSV	Mime→Table→Chunk→Embedding→Index	Tablični
+F (🔥 NOVO)	SQL iz eksterne baze	SQLIngest→Embedding→Index	Automatsko ubacivanje i RAG integracija
+🔐 Sigurnost
+
+JWT auth (signup/login)
+
+RLS (RLS policy po user_id)
+
+Upload limit 50 MB
+
+Sanitizacija SQL upita – samo SELECT
+
+.env konfiguracija za agente:
+
+EMBEDDINGS_PROVIDER=openai
+EMBEDDINGS_DIM=1536
+OCR_ENABLED=true
+PIPELINE_MODE=full
+
+🧰 API rute
+
+/auth/signup, /auth/login
+
+/documents/upload
+
+/documents, /documents/{id} (status + logovi)
+
+/ingest/sql (SQLIngestAgent)
+
+/chat, /search, /health
+
+🖥️ Frontend (React + Vite + Tailwind)
+
+Navigacija: Home | Documents | Chat | Settings
+
+Stranice:
+
+/ – hero sekcija, opis sistema, CTA („Upload dokument“ / „RAG chat“)
+
+/documents – Upload, lista dokumenata, status agenata (FileDropzone, AgentTrace)
+
+/chat – RAG Chat (ChatWindow)
+
+/settings – panel za SQL ingest (source_name, query → POST /ingest/sql)
+
+Komponente:
+
+FileDropzone.tsx – drag&drop upload
+
+AgentTrace.tsx – prikaz toka agenata, logova i sažetka (chunks/tables/relations/images)
+
+ChatWindow.tsx – chat s prikazom citata
+
+AppLayout.tsx – topbar + footer, moderan layout
+
+api.ts – API pozivi (/documents, /chat, /ingest/sql)
+
+Stil:
+
+Tailwind + utility klase (rounded-2xl, shadow-sm, bg-gradient-to-b, text-slate-*)
+
+Minimalistički, moderan UI (Shadcn inspiracija)
+
+Responsive grid, light theme
+
+🐳 Docker Compose
+
+Servisi:
+
+db       →  Postgres + pgvector
+redis    →  Queue backend
+backend  →  FastAPI
+worker   →  RQ Worker
+frontend →  React (Vite)
+nginx    →  Reverse proxy
+
+
+Expose:
+
+5173 → frontend
+
+8000 → API
+
+6379 → Redis
+
+80/443 → Nginx
+
+backend čekanje health-checka na db;
+worker poll-uje Redis za tasks (asinkrono izvršavanje agenata).
+
+🧪 Kriteriji uspjeha
+
+✅ Docker Compose radi iz prve (docker compose up --build)
+✅ Upload dokumenta pokreće pipeline i prikazuje log agenata
+✅ /ingest/sql dodaje SQL dataset u RAG bazu
+✅ Chat vraća odgovore + citate iz svih izvora (dokument i SQL)
+✅ Frontend je moderan, jasan i potpuno responzivan
+
+📛 Projekt
+
+Naziv: Multi-RAG — Multi-Agent Retrieval-Augmented Generation System
+Autor: Nermin Goran – AI/IoT Systems Architect
+Opis: Sve-u-jednom RAG sistem za dokumente i SQL izvore, s modularnim agentima i modernim frontendom.
