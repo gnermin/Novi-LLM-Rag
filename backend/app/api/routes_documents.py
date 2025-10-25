@@ -177,3 +177,82 @@ async def get_document(
         created_at=document.created_at,
         agent_logs=agent_logs
     )
+
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.created_by == current_user.id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Brisanje fizičkog fajla sa diska
+    if document.file_path and Path(document.file_path).exists():
+        try:
+            Path(document.file_path).unlink()
+        except Exception as e:
+            print(f"Failed to delete file {document.file_path}: {e}")
+    
+    # CASCADE brisanje će automatski obrisati:
+    # - document_chunks (svi chunk-ovi)
+    # - document_relations (sve relacije)
+    # - ingest_jobs (sve job-ove)
+    db.delete(document)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Dokument '{document.filename}' i svi povezani podaci uspješno obrisani",
+        "deleted_id": document_id
+    }
+
+
+@router.delete("")
+async def delete_all_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    documents = db.query(Document).filter(
+        Document.created_by == current_user.id
+    ).all()
+    
+    if not documents:
+        return {
+            "success": True,
+            "message": "Nema dokumenata za brisanje",
+            "deleted_count": 0
+        }
+    
+    deleted_count = 0
+    deleted_files = []
+    
+    for document in documents:
+        # Brisanje fizičkog fajla
+        if document.file_path and Path(document.file_path).exists():
+            try:
+                Path(document.file_path).unlink()
+            except Exception as e:
+                print(f"Failed to delete file {document.file_path}: {e}")
+        
+        deleted_files.append(document.filename)
+        db.delete(document)
+        deleted_count += 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Svi dokumenti ({deleted_count}) i povezani podaci uspješno obrisani",
+        "deleted_count": deleted_count,
+        "deleted_files": deleted_files
+    }
