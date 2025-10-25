@@ -64,11 +64,16 @@ Question: {query}
 
 Answer:"""
         
+        system_prompt = """You are a helpful assistant that answers questions based on the provided context. 
+IMPORTANT: Always respond in the SAME LANGUAGE as the user's question. 
+If the question is in Serbian, answer in Serbian. If in English, answer in English.
+Always cite your sources and be accurate."""
+        
         try:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that answers questions based on the provided context. Always cite your sources."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
