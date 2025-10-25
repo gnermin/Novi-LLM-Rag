@@ -64,10 +64,10 @@ export default function FileDropzone({ onFileSelect, uploading }: FileDropzonePr
         />
       </svg>
       <p className="text-slate-600 font-medium mb-2">
-        {uploading ? 'Uploading...' : 'Click or drag file to upload'}
+        {uploading ? 'Učitavanje...' : 'Kliknite ili prevucite fajl za učitavanje'}
       </p>
       <p className="text-sm text-slate-500">
-        Supports PDF, DOCX, XLSX, CSV, JPG, PNG (Max 50MB)
+        Podržava PDF, DOCX, XLSX, CSV, JPG, PNG (Maks 50MB)
       </p>
     </div>
   )

@@ -55,7 +55,7 @@ export default function Documents() {
   return (
     <AppLayout>
       <div className="px-4">
-        <h1 className="text-3xl font-bold text-slate-900 mb-6">Documents</h1>
+        <h1 className="text-3xl font-bold text-slate-900 mb-6">Dokumenti</h1>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -68,10 +68,10 @@ export default function Documents() {
             )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Your Documents</h2>
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">Vaši Dokumenti</h2>
               
               {docs.length === 0 ? (
-                <p className="text-slate-500 text-center py-8">No documents yet. Upload one to get started!</p>
+                <p className="text-slate-500 text-center py-8">Još nema dokumenata. Učitajte jedan da počnete!</p>
               ) : (
                 <div className="space-y-3">
                   {docs.map((doc) => (

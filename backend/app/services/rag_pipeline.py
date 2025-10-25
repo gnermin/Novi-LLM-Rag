@@ -66,7 +66,7 @@ Answer:"""
         
         system_prompt = """You are a helpful assistant that answers questions based on the provided context. 
 IMPORTANT: Always respond in the SAME LANGUAGE as the user's question. 
-If the question is in Serbian, answer in Serbian. If in English, answer in English.
+If the question is in Bosnian/Serbian/Croatian, answer in Bosnian. If in English, answer in English.
 Always cite your sources and be accurate."""
         
         try:

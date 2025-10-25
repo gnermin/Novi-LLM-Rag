@@ -52,8 +52,8 @@ export default function ChatWindow({ onSendMessage }: ChatWindowProps) {
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-slate-500 mt-20">
-            <p className="text-lg">Ask a question about your documents</p>
-            <p className="text-sm mt-2">Try: "What information is in my documents?"</p>
+            <p className="text-lg">Postavite pitanje o vašim dokumentima</p>
+            <p className="text-sm mt-2">Pokušajte: "Šta piše u mojim dokumentima?"</p>
           </div>
         )}
 
@@ -69,12 +69,12 @@ export default function ChatWindow({ onSendMessage }: ChatWindowProps) {
               <p className="whitespace-pre-wrap">{message.content}</p>
               {message.citations && message.citations.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-300 space-y-2">
-                  <p className="text-xs font-semibold">Sources:</p>
+                  <p className="text-xs font-semibold">Izvori:</p>
                   {message.citations.map((citation, idx) => (
                     <div key={idx} className="text-xs bg-white rounded-lg p-2 text-slate-700">
                       <div className="font-semibold">{citation.filename}</div>
                       <div className="mt-1 line-clamp-2">{citation.content}</div>
-                      <div className="text-slate-500 mt-1">Score: {citation.score.toFixed(3)}</div>
+                      <div className="text-slate-500 mt-1">Ocjena: {citation.score.toFixed(3)}</div>
                     </div>
                   ))}
                 </div>
@@ -86,7 +86,7 @@ export default function ChatWindow({ onSendMessage }: ChatWindowProps) {
         {loading && (
           <div className="flex justify-start">
             <div className="bg-slate-100 rounded-2xl px-4 py-3 text-slate-600">
-              Thinking...
+              Razmišljam...
             </div>
           </div>
         )}
@@ -98,7 +98,7 @@ export default function ChatWindow({ onSendMessage }: ChatWindowProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question..."
+            placeholder="Postavite pitanje..."
             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             disabled={loading}
           />
@@ -107,7 +107,7 @@ export default function ChatWindow({ onSendMessage }: ChatWindowProps) {
             disabled={loading || !input.trim()}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:bg-blue-400"
           >
-            Send
+            Pošalji
           </button>
         </div>
       </form>

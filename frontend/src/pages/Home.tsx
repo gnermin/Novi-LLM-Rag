@@ -7,10 +7,10 @@ export default function Home() {
       <div className="px-4 py-12">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-slate-900 mb-4">
-            Multi-Agent RAG System
+            Multi-Agentni RAG Sistem
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Process documents with AI-powered agents, ingest SQL data, and chat with your knowledge base using advanced RAG technology.
+            Obrađujte dokumente sa AI agentima, uvozite SQL podatke i razgovarajte sa svojom bazom znanja koristeći naprednu RAG tehnologiju.
           </p>
         </div>
 
@@ -24,9 +24,9 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">Upload Documents</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">Učitaj Dokumente</h3>
             <p className="text-slate-600">
-              Upload PDFs, DOCX, Excel, CSV, and images. Watch as our multi-agent pipeline processes them with OCR, chunking, and embeddings.
+              Učitajte PDF, DOCX, Excel, CSV i slike. Gledajte kako naši multi-agentni pipeline ih obrađuje sa OCR-om, dijeljenjem i embeddingom.
             </p>
           </Link>
 
@@ -41,30 +41,30 @@ export default function Home() {
             </div>
             <h3 className="text-2xl font-bold text-slate-900 mb-2">RAG Chat</h3>
             <p className="text-slate-600">
-              Ask questions and get AI-powered answers with citations from your documents and ingested data sources.
+              Postavite pitanja i dobijte AI odgovore sa citatima iz vaših dokumenata i uvezenih izvora podataka.
             </p>
           </Link>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-8 max-w-4xl mx-auto border border-slate-200">
-          <h2 className="text-3xl font-bold text-slate-900 mb-6">Features</h2>
+          <h2 className="text-3xl font-bold text-slate-900 mb-6">Mogućnosti</h2>
           <div className="grid md:grid-cols-3 gap-6">
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2">Multi-Agent Pipeline</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">Multi-Agentni Pipeline</h3>
               <p className="text-sm text-slate-600">
-                MIME detection, text extraction, OCR, chunking, embedding, and indexing agents work together.
+                MIME detekcija, ekstrakcija teksta, OCR, dijeljenje, embedding i indeksiranje agenata rade zajedno.
               </p>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2">SQL Ingestion</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">SQL Uvoz</h3>
               <p className="text-sm text-slate-600">
-                Connect to external databases and ingest data via SQL queries for RAG search.
+                Povežite se sa vanjskim bazama podataka i uvezite podatke putem SQL upita za RAG pretragu.
               </p>
             </div>
             <div>
-              <h3 className="font-semibold text-slate-900 mb-2">Hybrid Search</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">Hibridna Pretraga</h3>
               <p className="text-sm text-slate-600">
-                BM25 + pgvector similarity search for optimal retrieval performance.
+                BM25 + pgvector sličnost pretraga za optimalne performanse pretraživanja.
               </p>
             </div>
           </div>

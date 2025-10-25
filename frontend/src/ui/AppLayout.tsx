@@ -10,10 +10,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const navItems = [
-    { path: '/', label: 'Home' },
-    { path: '/documents', label: 'Documents' },
+    { path: '/', label: 'Početna' },
+    { path: '/documents', label: 'Dokumenti' },
     { path: '/chat', label: 'Chat' },
-    { path: '/settings', label: 'Settings' },
+    { path: '/settings', label: 'Podešavanja' },
   ]
 
   return (
@@ -46,7 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 onClick={handleLogout}
                 className="ml-4 px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
               >
-                Sign out
+                Odjavi se
               </button>
             </div>
           </div>
@@ -59,7 +59,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <footer className="mt-auto bg-white border-t border-slate-200 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-600">
-          Multi-RAG — Multi-Agent Retrieval-Augmented Generation System
+          Multi-RAG — Multi-Agentni Sistem za Prošireno Pretraživanje
         </div>
       </footer>
     </div>

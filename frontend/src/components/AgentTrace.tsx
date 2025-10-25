@@ -29,25 +29,25 @@ export default function AgentTrace({ logs, metadata }: AgentTraceProps) {
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
-      <h3 className="text-lg font-semibold text-slate-900 mb-4">Agent Pipeline Trace</h3>
+      <h3 className="text-lg font-semibold text-slate-900 mb-4">Praćenje Agentnog Pipeline-a</h3>
       
       {metadata && (
         <div className="bg-slate-50 rounded-lg p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           {metadata.chunks !== undefined && (
             <div>
-              <div className="text-slate-600">Chunks</div>
+              <div className="text-slate-600">Dijelovi</div>
               <div className="font-semibold text-slate-900">{metadata.chunks}</div>
             </div>
           )}
           {metadata.text_length !== undefined && (
             <div>
-              <div className="text-slate-600">Text Length</div>
+              <div className="text-slate-600">Dužina Teksta</div>
               <div className="font-semibold text-slate-900">{metadata.text_length}</div>
             </div>
           )}
           {metadata.rows_fetched !== undefined && (
             <div>
-              <div className="text-slate-600">Rows Fetched</div>
+              <div className="text-slate-600">Učitanih Redova</div>
               <div className="font-semibold text-slate-900">{metadata.rows_fetched}</div>
             </div>
           )}
