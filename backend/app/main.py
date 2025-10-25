@@ -53,5 +53,11 @@ if frontend_dist.exists():
     async def serve_frontend(full_path: str):
         file_path = frontend_dist / full_path
         if file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(frontend_dist / "index.html")
+            return FileResponse(
+                file_path,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            )
+        return FileResponse(
+            frontend_dist / "index.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
