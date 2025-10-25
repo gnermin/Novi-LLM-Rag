@@ -61,8 +61,8 @@ async def get_current_user(
     if payload is None:
         raise credentials_exception
     
-    user_id: str = payload.get("sub")
-    if user_id is None:
+    user_id = payload.get("sub")
+    if user_id is None or not isinstance(user_id, str):
         raise credentials_exception
     
     user = db.query(User).filter(User.id == user_id).first()

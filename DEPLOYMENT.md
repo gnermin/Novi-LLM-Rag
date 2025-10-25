@@ -17,12 +17,12 @@ The deployment is configured with:
 
 **Build Command:**
 ```bash
-bash -c "cd frontend; npm install; npm run build"
+sh -c "cd frontend && npm install && npm run build"
 ```
 
 **Run Command:**
 ```bash
-bash -c "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 5000"
+sh -c "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 5000"
 ```
 
 **Deployment Type:** Autoscale
