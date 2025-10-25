@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
-from backend.app.core.db import Base
+from app.core.db import Base
 
 
 class ExternalSource(Base):
@@ -14,7 +14,7 @@ class ExternalSource(Base):
     name = Column(String(255), nullable=False)
     connection_string = Column(Text, nullable=True)
     query = Column(Text, nullable=True)
-    metadata = Column(JSON, default=dict)
+    source_metadata = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
 

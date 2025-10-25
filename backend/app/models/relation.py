@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
-from backend.app.core.db import Base
+from app.core.db import Base
 
 
 class DocumentRelation(Base):
@@ -16,7 +16,7 @@ class DocumentRelation(Base):
     target_ref = Column(String(255), nullable=True)
     relation_type = Column(String(100), nullable=True)
     score = Column(Float, nullable=True)
-    metadata = Column(JSON, default=dict)
+    relation_metadata = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     document = relationship("Document", back_populates="relations")

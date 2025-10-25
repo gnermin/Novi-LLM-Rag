@@ -1,8 +1,8 @@
-from backend.app.models.user import User
-from backend.app.models.document import Document
-from backend.app.models.chunk import DocumentChunk
-from backend.app.models.relation import DocumentRelation
-from backend.app.models.external_source import ExternalSource, IngestJob
+from app.models.user import User
+from app.models.document import Document
+from app.models.chunk import DocumentChunk
+from app.models.relation import DocumentRelation
+from app.models.external_source import ExternalSource, IngestJob
 
 __all__ = [
     "User",

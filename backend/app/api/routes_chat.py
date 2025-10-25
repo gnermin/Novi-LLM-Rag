@@ -1,0 +1,66 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.core.db import get_db
+from app.core.security import get_current_user
+from app.models.user import User
+from app.schemas.chat import ChatRequest, ChatResponse, SearchRequest, SearchResponse, Citation
+from app.services.rag_pipeline import RAGPipeline
+from app.services.search import SearchService
+
+router = APIRouter(tags=["chat"])
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        rag = RAGPipeline(db)
+        result = await rag.generate_answer(
+            query=request.query,
+            top_k=request.top_k
+        )
+        
+        citations = [Citation(**c) for c in result["citations"]]
+        
+        return ChatResponse(
+            answer=result["answer"],
+            citations=citations,
+            query=result["query"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search(
+    request: SearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        search_service = SearchService(db)
+        results = await search_service.hybrid_search(
+            query=request.query,
+            top_k=request.top_k
+        )
+        
+        citations = []
+        for chunk, score in results:
+            citations.append(Citation(
+                chunk_id=chunk.id,
+                document_id=chunk.document_id,
+                filename=chunk.document.filename,
+                content=chunk.content,
+                score=score,
+                metadata=chunk.chunk_metadata
+            ))
+        
+        return SearchResponse(
+            results=citations,
+            total=len(citations)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
