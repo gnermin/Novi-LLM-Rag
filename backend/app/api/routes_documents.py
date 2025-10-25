@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List
 from pathlib import Path
 import aiofiles
@@ -80,7 +81,7 @@ async def upload_document(
         
         job.status = "completed"
         job.logs = [result.to_dict() for result in context.agent_results]
-        job.completed_at = db.execute("SELECT NOW()").scalar()
+        job.completed_at = db.execute(text("SELECT NOW()")).scalar()
         
         db.commit()
         db.refresh(document)
@@ -133,7 +134,7 @@ async def list_documents(
             status=doc.status,
             mime_type=doc.mime_type,
             file_size=doc.file_size,
-            metadata=doc.metadata or {},
+            metadata=doc.doc_metadata or {},
             created_at=doc.created_at,
             agent_logs=agent_logs
         ))

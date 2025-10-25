@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
@@ -80,7 +81,7 @@ async def ingest_from_sql(
         
         job.status = "completed"
         job.logs = [result.to_dict() for result in context.agent_results]
-        job.completed_at = db.execute("SELECT NOW()").scalar()
+        job.completed_at = db.execute(text("SELECT NOW()")).scalar()
         
         db.commit()
         db.refresh(document)
