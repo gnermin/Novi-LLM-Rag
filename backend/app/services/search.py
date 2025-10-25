@@ -42,7 +42,7 @@ class SearchService:
         self,
         query: str,
         top_k: int = 5,
-        query_embedding: List[float] = None
+        query_embedding: List[float] | None = None
     ) -> List[Tuple[DocumentChunk, float]]:
         results = []
         

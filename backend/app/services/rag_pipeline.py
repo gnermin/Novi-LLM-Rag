@@ -1,9 +1,21 @@
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from openai import OpenAI
-from app.services.search import SearchService
 from app.models.document import Document
 from app.core.config import settings
+from app.services.search import SearchService, rrf_merge
+from app.agents.planner import PlannerAgent
+from app.agents.rewriter import RewriterAgent
+from app.agents.generation import GenerationAgent
+from app.agents.judge import JudgeAgent
+from app.agents.summarizer import SummarizerAgent
+
+# Inicijalizacija agenata
+planner = PlannerAgent()
+rewriter = RewriterAgent()
+generator = GenerationAgent()
+judge = JudgeAgent()
+summarizer = SummarizerAgent()
 
 
 class RAGPipeline:
@@ -17,85 +29,131 @@ class RAGPipeline:
     async def generate_answer(
         self,
         query: str,
-        top_k: int = 5
+        top_k: int | None = None
     ) -> Dict[str, Any]:
+        """
+        Multi-agent RAG pipeline za generisanje odgovora.
+        Backward compatible sa starim API-jem.
+        
+        Args:
+            query: Korisnikov upit
+            top_k: Broj rezultata za pretragu (default: settings.RAG_TOP_K)
+        
+        Returns:
+            Dict sa answer, citations (sources), verdict, i summary
+        """
         if not self.client:
             raise Exception("OpenAI API key not configured")
         
-        query_embedding = await self._get_embedding(query)
+        top_k = top_k or settings.RAG_TOP_K
         
+        # Inicijalizuj kontekst za agente
+        ctx: Dict[str, Any] = {
+            "query": query,
+            "rewrites_count": settings.AGENT_REWRITES
+        }
+
+        # 1) PLAN - Planner odlučuje strategiju
+        ctx = planner.run(ctx)
+
+        # 2) REWRITES - Generiši dodatne query varijante
+        ctx = rewriter.run(ctx)
+
+        # 3) RETRIEVAL - Federated search sa RRF
+        queries = [ctx["query"]] + ctx.get("rewrites", [])
+        result_sets: List[List[Dict[str, Any]]] = []
+        
+        for q in queries:
+            q_vec = await self._get_embedding(q)
+            hits = await self._search_and_convert(q_vec, top_k)
+            result_sets.append(hits)
+
+        # RRF merge svih rezultata
+        merged = rrf_merge(result_sets)
+        ctx["retrieval"] = {"hits": merged[:top_k], "top_k": top_k}
+
+        # 4) GENERATE - Generiši odgovor
+        ctx = generator.run(ctx)
+
+        # 5) JUDGE - Evaluacija kvaliteta + eventualna iteracija
+        ctx = judge.run(ctx)
+
+        # Opciona iteracija ako judge kaže da treba više konteksta
+        iteration = 0
+        while ctx.get("verdict", {}).get("needs_more") and iteration < 2:
+            iteration += 1
+            more_k = min(ctx["retrieval"]["top_k"] + 5, 20)
+            extra_sets = []
+            for q in queries:
+                q_vec = await self._get_embedding(q)
+                hits = await self._search_and_convert(q_vec, more_k)
+                extra_sets.append(hits)
+            
+            merged = rrf_merge(result_sets + extra_sets)
+            ctx["retrieval"] = {"hits": merged[:more_k], "top_k": more_k}
+            ctx = generator.run(ctx)
+            ctx = judge.run(ctx)
+
+        # 6) SUMMARIZE - Opcioni sažetak (možeš aktivirati po potrebi)
+        # ctx = summarizer.run(ctx)
+
+        # Konvertuj hits u citations format (backward compatibility)
+        citations = self._convert_hits_to_citations(ctx["retrieval"]["hits"])
+
+        return {
+            "answer": ctx.get("answer", ""),
+            "citations": citations,  # Backward compatible
+            "sources": citations,    # Novi alias
+            "query": query,
+            "verdict": ctx.get("verdict", {"ok": True, "needs_more": False}),
+            # "summary": ctx.get("summary")  # Odkomentiraj ako koristiš summarizer
+        }
+    
+    async def _search_and_convert(self, embedding: List[float], top_k: int) -> List[Dict[str, Any]]:
+        """
+        Izvuči rezultate pretrage i konvertuj u dict format za RRF.
+        """
         search_results = await self.search_service.hybrid_search(
-            query=query,
-            query_embedding=query_embedding,
+            query="",
+            query_embedding=embedding,
             top_k=top_k
         )
         
-        if not search_results:
-            return {
-                "answer": "I couldn't find any relevant information to answer your question.",
-                "citations": [],
-                "query": query
-            }
-        
-        context_parts = []
-        citations = []
-        
+        hits = []
         for chunk, score in search_results:
-            context_parts.append(f"[Source: {chunk.document.filename}]\n{chunk.content}")
-            
-            citations.append({
+            hits.append({
+                "id": str(chunk.id),
                 "chunk_id": str(chunk.id),
                 "document_id": str(chunk.document_id),
-                "filename": chunk.document.filename,
+                "filename": chunk.document.filename if chunk.document else "Unknown",
                 "content": chunk.content,
-                "score": score,
-                "metadata": chunk.chunk_metadata
+                "score": float(score),
+                "metadata": chunk.metadata or {}
             })
-        
-        context = "\n\n---\n\n".join(context_parts)
-        
-        prompt = f"""Based on the following context, answer the user's question. 
-If the context doesn't contain relevant information, say so clearly.
-
-Context:
-{context}
-
-Question: {query}
-
-Answer:"""
-        
-        system_prompt = """You are a helpful assistant that answers questions based on the provided context. 
-IMPORTANT: Always respond in the SAME LANGUAGE as the user's question. 
-If the question is in Bosnian/Serbian/Croatian, answer in Bosnian. If in English, answer in English.
-Always cite your sources and be accurate."""
-        
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=500
-            )
-            
-            answer = response.choices[0].message.content
-            
-        except Exception as e:
-            raise Exception(f"Failed to generate answer: {str(e)}")
-        
-        return {
-            "answer": answer,
-            "citations": citations,
-            "query": query
-        }
+        return hits
+    
+    def _convert_hits_to_citations(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Konvertuj hits u citations format (backward compatibility).
+        """
+        return [
+            {
+                "chunk_id": hit.get("chunk_id"),
+                "document_id": hit.get("document_id"),
+                "filename": hit.get("filename"),
+                "content": hit.get("content"),
+                "score": hit.get("score"),
+                "metadata": hit.get("metadata", {})
+            }
+            for hit in hits
+        ]
     
     async def _get_embedding(self, text: str) -> List[float]:
+        """Generiši embedding vektor za tekst."""
         try:
             response = self.client.embeddings.create(
                 input=text,
-                model="text-embedding-ada-002"
+                model=settings.EMBEDDINGS_MODEL
             )
             return response.data[0].embedding
         except Exception as e:

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.models.user import User
-from app.schemas.chat import ChatRequest, ChatResponse, SearchRequest, SearchResponse, Citation
+from app.schemas.chat import ChatRequest, ChatResponse, SearchRequest, SearchResponse, Citation, Verdict
 from app.services.rag_pipeline import RAGPipeline
 from app.services.search import SearchService
 
@@ -25,10 +25,16 @@ async def chat(
         
         citations = [Citation(**c) for c in result["citations"]]
         
+        # Konvertuj verdict dict u Verdict model (ako postoji)
+        verdict_data = result.get("verdict")
+        verdict = Verdict(**verdict_data) if verdict_data else None
+        
         return ChatResponse(
             answer=result["answer"],
             citations=citations,
-            query=result["query"]
+            query=result["query"],
+            verdict=verdict,
+            summary=result.get("summary")
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -50,12 +56,12 @@ async def search(
         citations = []
         for chunk, score in results:
             citations.append(Citation(
-                chunk_id=chunk.id,
-                document_id=chunk.document_id,
+                chunk_id=str(chunk.id),
+                document_id=str(chunk.document_id),
                 filename=chunk.document.filename,
-                content=chunk.content,
+                content=str(chunk.content),
                 score=score,
-                metadata=chunk.chunk_metadata
+                metadata=chunk.metadata or {}
             ))
         
         return SearchResponse(

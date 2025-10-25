@@ -28,7 +28,16 @@ class ChatRequest(BaseModel):
     top_k: int = 5
 
 
+class Verdict(BaseModel):
+    """Evaluacija kvaliteta odgovora od Judge agenta."""
+    ok: bool = True
+    needs_more: bool = False
+    notes: Optional[str] = None
+
+
 class ChatResponse(BaseModel):
     answer: str
     citations: List[Citation]
     query: str
+    verdict: Optional[Verdict] = None
+    summary: Optional[str] = None
