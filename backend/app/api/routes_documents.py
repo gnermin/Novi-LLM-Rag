@@ -74,13 +74,17 @@ async def upload_document(
         document.status = "ready"
         document.doc_metadata = {
             "chunks": len(context.chunks),
-            "text_length": len(context.text_content)
+            "text_length": len(context.text_content) if context.text_content else 0,
+            "indexed_chunks": context.metadata.get('indexed_chunks', 0)
         }
         
         job.status = "completed"
         job.logs = [result.to_dict() for result in context.agent_results]
+        job.completed_at = db.execute("SELECT NOW()").scalar()
         
         db.commit()
+        db.refresh(document)
+        db.refresh(job)
         
     except Exception as e:
         document.status = "error"

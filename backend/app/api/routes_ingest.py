@@ -74,13 +74,17 @@ async def ingest_from_sql(
             document.doc_metadata = {}
         document.doc_metadata.update({
             "chunks": len(context.chunks),
-            "rows_fetched": context.metadata.get("sql_rows_fetched", 0)
+            "rows_fetched": context.metadata.get("sql_rows_fetched", 0),
+            "indexed_chunks": context.metadata.get('indexed_chunks', 0)
         })
         
         job.status = "completed"
         job.logs = [result.to_dict() for result in context.agent_results]
+        job.completed_at = db.execute("SELECT NOW()").scalar()
         
         db.commit()
+        db.refresh(document)
+        db.refresh(job)
         
         return SQLIngestResponse(
             document_id=document.id,
