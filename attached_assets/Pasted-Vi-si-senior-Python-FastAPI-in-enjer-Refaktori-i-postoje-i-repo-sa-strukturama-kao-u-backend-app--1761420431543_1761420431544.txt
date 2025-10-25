@@ -1,0 +1,326 @@
+Vi si senior Python/FastAPI inženjer. Refaktoriši postojeći repo sa strukturama kao u backend/app/... da dodaš LLM multi-agente na query strani – bez lomljenja postojećih ruta. Uradi sledeće izmjene tačno po fajlovima. Sačuvaj kompatibilnost: /chat i dalje prima {message, top_k?} i vraća {answer, sources, ...} (dodaj neobavezno verdict i summary).
+
+0) Pretpostavke okruženja
+
+Python 3.11
+
+FastAPI + uvicorn
+
+Postgres + pgvector
+
+Već postoje: services/rag_pipeline.py, services/search.py, core/config.py, app/api/routes_chat.py, ingest agenti u app/agents/ (mime/ocr/chunking/embedding/indexing).
+
+1) Dodaj ENV i config
+
+Datoteka: backend/app/core/config.py
+Dodaj ili proširi klasu postavki ovim poljima (ako već postoje, samo ih zadrži i eventualno setuj default):
+
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    OPENAI_API_KEY: str | None = None
+    CHAT_MODEL: str = "gpt-4.1-mini"
+    EMBEDDINGS_MODEL: str = "text-embedding-3-small"
+    RAG_TOP_K: int = 5
+    AGENT_REWRITES: int = 2
+    JUDGE_STRICTNESS: str = "medium"  # "low" | "medium" | "high"
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+
+
+Datoteka: backend/.env.example (kreiraj ako ne postoji) – dodaj:
+
+OPENAI_API_KEY=sk-...
+CHAT_MODEL=gpt-4.1-mini
+EMBEDDINGS_MODEL=text-embedding-3-small
+RAG_TOP_K=5
+AGENT_REWRITES=2
+JUDGE_STRICTNESS=medium
+
+2) LLM klijent (tanki wrapper)
+
+Novi fajl: backend/app/services/llm_client.py
+
+from typing import List, Optional
+from app.core.config import settings
+
+try:
+    from openai import OpenAI
+    _client = OpenAI()
+except Exception:
+    _client = None
+
+def llm_complete(prompt: str, model: Optional[str] = None, n: int = 1) -> List[str]:
+    """
+    Vrati listu n završetaka. Ako OpenAI nije dostupan, vrati stub odgovore.
+    """
+    model = model or settings.CHAT_MODEL
+    if _client is None or not settings.OPENAI_API_KEY:
+        # Fallback za razvoj
+        return [f"[STUB:{model}] {prompt[:200]} ..."] * n
+
+    resp = _client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        n=n,
+        temperature=0.2,
+    )
+    outs = []
+    for choice in resp.choices:
+        outs.append(choice.message.content or "")
+    return outs
+
+3) Prompt helperi
+
+Novi fajl: backend/app/services/prompting.py
+
+from typing import List, Dict
+
+def build_answer_prompt(user_query: str, chunks: List[Dict]) -> str:
+    ctx_txt = "\n\n---\n".join(
+        (c.get("content","") or "")[:1200] for c in chunks
+    )
+    return (
+        "Odgovori precizno na pitanje koristeći isključivo informacije iz KONTEKSTA. "
+        "Ako nema dovoljno informacija, reci to eksplicitno i nemoj halucinirati.\n\n"
+        f"PITANJE:\n{user_query}\n\nKONTEKST:\n{ctx_txt}\n\n"
+        "Vrati jasan, sažet odgovor i ne uvodi nove činjenice van konteksta."
+    )
+
+4) Novi agenti (LLM-strana)
+
+Novi fajl: backend/app/agents/planner.py
+
+from typing import Any, Dict
+
+class PlannerAgent:
+    name = "planner"
+    def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        # Minimalni plan: koristi RAG; broj rewrites je iz ctx-a ili 0
+        rewrites = int(ctx.get("rewrites_count", 0))
+        ctx["plan"] = {
+            "use_rag": True,
+            "use_sql": False,
+            "use_web": False,
+            "rewrites": rewrites,
+        }
+        return ctx
+
+
+Novi fajl: backend/app/agents/rewriter.py
+
+from typing import Any, Dict, List
+from app.services.llm_client import llm_complete
+
+class RewriterAgent:
+    name = "rewriter"
+    def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        k = int(ctx.get("plan", {}).get("rewrites", 0))
+        if k <= 0:
+            ctx["rewrites"] = []
+            return ctx
+        prompt = (
+            "Parafraziraj upit u {k} varijante koje mogu poboljšati vektorsku pretragu. "
+            "Sačuvaj semantiku. Vrati svaku varijantu u novom redu bez dodatnog teksta.\n\n"
+            f"Upit: {ctx['query']}"
+        ).replace("{k}", str(k))
+        outs = llm_complete(prompt, n=1)
+        lines = (outs[0] or "").splitlines()
+        rewrites = [ln.strip(" -•\t") for ln in lines if ln.strip()]
+        ctx["rewrites"] = rewrites[:k]
+        return ctx
+
+
+Novi fajl: backend/app/agents/generation.py
+
+from typing import Any, Dict
+from app.core.config import settings
+from app.services.prompting import build_answer_prompt
+from app.services.llm_client import llm_complete
+
+class GenerationAgent:
+    name = "generation"
+    def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        chunks = ctx.get("retrieval", {}).get("hits", [])
+        prompt = build_answer_prompt(user_query=ctx["query"], chunks=chunks)
+        out = llm_complete(prompt, model=settings.CHAT_MODEL, n=1)[0]
+        ctx["answer"] = (out or "").strip()
+        return ctx
+
+
+Novi fajl: backend/app/agents/judge.py
+
+from typing import Any, Dict
+import json
+from app.services.llm_client import llm_complete
+
+def _safe_json(s: str):
+    try:
+        return json.loads(s)
+    except Exception:
+        return {"ok": True, "needs_more": False, "notes": "fallback"}
+
+class JudgeAgent:
+    name = "judge"
+    def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        answer = ctx.get("answer","")
+        chunks = ctx.get("retrieval",{}).get("hits",[])
+        cite_texts = "\n".join((c.get("content","") or "")[:400] for c in chunks[:3])
+        prompt = (
+            "Kao kritičar, procijeni da li odgovor dosljedno koristi kontekst i ne halucinira. "
+            "Vrati strogo JSON: {\"ok\": bool, \"needs_more\": bool, \"notes\": \"...\"}.\n\n"
+            f"ODGOVOR:\n{answer}\n\nKONTEKST (skraćeno):\n{cite_texts}"
+        )
+        raw = llm_complete(prompt, n=1)[0]
+        ctx["verdict"] = _safe_json(raw or "")
+        return ctx
+
+
+(Opcionalno) backend/app/agents/summarizer.py
+
+from typing import Any, Dict
+from app.services.llm_client import llm_complete
+
+class SummarizerAgent:
+    name = "summarizer"
+    def run(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+        ans = ctx.get("answer","")
+        prompt = f"Sažmi sljedeći odgovor u dvije rečenice, jasno i precizno:\n\n{ans}"
+        ctx["summary"] = llm_complete(prompt, n=1)[0]
+        return ctx
+
+5) Search util – RRF spajanje
+
+Izmijeni: backend/app/services/search.py
+Dodaj helper za Reciprocal Rank Fusion i vrati ujedinjen Top-K:
+
+from typing import List, Dict
+
+def rrf_merge(result_sets: List[List[Dict]], k: int = 60) -> List[Dict]:
+    # result_sets = lista lista hitova; svaki hit treba da ima unique "chunk_id"
+    scores: dict[str, float] = {}
+    keep: dict[str, Dict] = {}
+    for results in result_sets:
+        for rank, item in enumerate(results, start=1):
+            cid = item.get("chunk_id") or item.get("id")
+            if not cid:
+                continue
+            keep[cid] = item
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank)
+    # sort po zbirnim score
+    merged_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+    return [keep[cid] for cid in merged_ids]
+
+
+(Ostatak embed_query i vector_search ostaje kako jeste.)
+
+6) Orkestracija – refaktor rag_pipeline
+
+Izmijeni: backend/app/services/rag_pipeline.py
+Uvedi multi-agent tok i opcionalne iteracije:
+
+from typing import Dict, Any, List
+from app.core.config import settings
+from app.services.search import embed_query, vector_search, rrf_merge
+from app.agents.planner import PlannerAgent
+from app.agents.rewriter import RewriterAgent
+from app.agents.generation import GenerationAgent
+from app.agents.judge import JudgeAgent
+# from app.agents.summarizer import SummarizerAgent
+
+planner = PlannerAgent()
+rewriter = RewriterAgent()
+generator = GenerationAgent()
+judge = JudgeAgent()
+# summarizer = SummarizerAgent()
+
+def answer(message: str, top_k: int | None = None) -> Dict[str, Any]:
+    top_k = top_k or settings.RAG_TOP_K
+    ctx: Dict[str, Any] = {"query": message, "rewrites_count": settings.AGENT_REWRITES}
+
+    # 1) plan
+    ctx = planner.run(ctx)
+
+    # 2) rewrites (opciono)
+    ctx = rewriter.run(ctx)
+
+    # 3) retrieval: original + rewrites → federated
+    queries = [ctx["query"]] + ctx.get("rewrites", [])
+    result_sets: List[List[Dict[str, Any]]] = []
+    for q in queries:
+        q_vec = embed_query(q)
+        hits = vector_search(q_vec, top_k=top_k)
+        result_sets.append(hits)
+
+    merged = rrf_merge(result_sets)
+    ctx["retrieval"] = {"hits": merged[:top_k], "top_k": top_k}
+
+    # 4) generate
+    ctx = generator.run(ctx)
+
+    # 5) judge (+ eventualna iteracija)
+    ctx = judge.run(ctx)
+
+    it = 0
+    while ctx.get("verdict",{}).get("needs_more") and it < 2:
+        it += 1
+        more_k = min(ctx["retrieval"]["top_k"] + 5, 20)
+        extra_sets = []
+        for q in queries:
+            q_vec = embed_query(q)
+            hits = vector_search(q_vec, top_k=more_k)
+            extra_sets.append(hits)
+        merged = rrf_merge(result_sets + extra_sets)
+        ctx["retrieval"] = {"hits": merged[:more_k], "top_k": more_k}
+        ctx = generator.run(ctx)
+        ctx = judge.run(ctx)
+
+    # opciono:
+    # ctx = summarizer.run(ctx)
+
+    return {
+        "answer": ctx.get("answer",""),
+        "sources": ctx["retrieval"]["hits"],
+        "verdict": ctx.get("verdict", {"ok": True, "needs_more": False}),
+        # "summary": ctx.get("summary")
+    }
+
+7) Chat ruta – backward compatible
+
+Provjeri: backend/app/api/routes_chat.py – ne mijenjaj path/contract, samo dozvoli nova polja u response modelu (ako već koristi striktan response_model, proširi ga da verdict i summary budu Optional).
+
+8) requirements
+
+Datoteka: backend/requirements.txt – osiguraj da sadrži:
+
+fastapi
+uvicorn
+pydantic
+openai>=1.0.0
+python-dotenv
+sqlalchemy
+psycopg2-binary
+
+
+(plus sve što već koristi projekt)
+
+9) Kôd stil i test
+
+Dodaj osnovne docstringove u nove agente.
+
+Unit test za rrf_merge (barem mali), smoke test rag_pipeline.answer() sa stub LLM klijentom (bez pravog API ključa treba proći).
+
+10) Ne diraj ingest agente
+
+NIKAKO ne mijenjaj agents/mime_detect.py, text_extract.py, ocr.py, chunking.py, embedding.py, indexing.py, sql_ingest.py. Ovo je samo query-strana.
+
+Prihvatanje
+
+Build prolazi.
+
+/chat radi kao prije, sada vraća i verdict (i summary ako je aktiviran summarizer).
+
+Nema breaking change-ova u postojećim upload/ingest endpointima.

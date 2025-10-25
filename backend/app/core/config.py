@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     EMBEDDINGS_PROVIDER: str = os.getenv("EMBEDDINGS_PROVIDER", "openai")
     EMBEDDINGS_DIM: int = int(os.getenv("EMBEDDINGS_DIM", "1536"))
+    EMBEDDINGS_MODEL: str = os.getenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
+    
+    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+    RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", "5"))
+    AGENT_REWRITES: int = int(os.getenv("AGENT_REWRITES", "2"))
+    JUDGE_STRICTNESS: str = os.getenv("JUDGE_STRICTNESS", "medium")
     
     OCR_ENABLED: bool = os.getenv("OCR_ENABLED", "true").lower() == "true"
     PIPELINE_MODE: str = os.getenv("PIPELINE_MODE", "full")

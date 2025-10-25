@@ -1,10 +1,37 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func, select, desc
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 from app.models.chunk import DocumentChunk
 from app.models.document import Document
 from pgvector.sqlalchemy import Vector
 import uuid
+
+
+def rrf_merge(result_sets: List[List[Dict]], k: int = 60) -> List[Dict]:
+    """
+    Reciprocal Rank Fusion - spaja više result setova u jedan rangiran rezultat.
+    
+    Args:
+        result_sets: Lista listi hitova; svaki hit treba da ima unique "chunk_id" ili "id"
+        k: RRF parametar (default 60)
+    
+    Returns:
+        Ujedinjena lista dict-ova sortirana po RRF score-u
+    """
+    scores: dict[str, float] = {}
+    keep: dict[str, Dict] = {}
+    
+    for results in result_sets:
+        for rank, item in enumerate(results, start=1):
+            cid = item.get("chunk_id") or item.get("id")
+            if not cid:
+                continue
+            keep[cid] = item
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank)
+    
+    # Sort po zbirnim score
+    merged_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+    return [keep[cid] for cid in merged_ids]
 
 
 class SearchService:

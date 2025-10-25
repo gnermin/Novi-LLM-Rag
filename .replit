@@ -5,7 +5,7 @@ integrations = ["python_openai_ai_integrations:1.0.0", "python_database:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "postgresql", "rustc", "tcl", "tesseract", "tk", "zlib"]
+packages = ["cargo", "freetype", "glibcLocales", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "postgresql", "rustc", "tcl", "tesseract", "tk", "zlib", "tree"]
 
 [workflows]
 runButton = "Project"
