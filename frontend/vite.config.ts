@@ -5,15 +5,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 5000,
+    port: 3000,
     strictPort: true,
     proxy: {
-      '/auth': 'http://localhost:8000',
-      '/documents': 'http://localhost:8000',
-      '/chat': 'http://localhost:8000',
-      '/search': 'http://localhost:8000',
-      '/ingest': 'http://localhost:8000',
-      '/health': 'http://localhost:8000'
+      '/auth': 'http://localhost:5000',
+      '/documents': 'http://localhost:5000',
+      '/chat': 'http://localhost:5000',
+      '/search': 'http://localhost:5000',
+      '/ingest': 'http://localhost:5000',
+      '/health': 'http://localhost:5000',
+      '/api': 'http://localhost:5000'
     }
   }
 })

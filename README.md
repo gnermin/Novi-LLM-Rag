@@ -37,11 +37,25 @@ The application is pre-configured and ready to run in Replit:
    - `OPENAI_API_KEY` - OpenAI API key
    - `SESSION_SECRET` - JWT secret
 
-2. **Servers**: Both workflows are running
-   - Backend: http://localhost:8000 (API)
-   - Frontend: http://localhost:5000 (UI)
+2. **Development Server**: Single unified server
+   - Dev Server: http://localhost:5000 (API + Frontend)
 
 3. **Access the App**: Click the webview to open the application
+
+## Deployment
+
+The application is **ready to deploy** with Replit Autoscale! See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+**Quick Deploy:**
+1. Click "Deploy" in Replit
+2. Choose "Autoscale" deployment
+3. Select machine size and max instances
+4. Click "Deploy" - that's it!
+
+The deployment automatically:
+- Builds the React frontend
+- Starts FastAPI server on port 5000
+- Serves both API and frontend from single origin
 
 ## Usage
 
