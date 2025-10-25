@@ -121,6 +121,13 @@ class RAGPipeline:
         
         hits = []
         for chunk, score in search_results:
+            # Konvertuj metadata u dict ako je potrebno
+            meta = chunk.chunk_metadata
+            if meta is None:
+                meta = {}
+            elif not isinstance(meta, dict):
+                meta = dict(meta) if hasattr(meta, '__iter__') else {}
+            
             hits.append({
                 "id": str(chunk.id),
                 "chunk_id": str(chunk.id),
@@ -128,7 +135,7 @@ class RAGPipeline:
                 "filename": chunk.document.filename if chunk.document else "Unknown",
                 "content": chunk.content,
                 "score": float(score),
-                "metadata": chunk.metadata or {}
+                "metadata": meta
             })
         return hits
     
@@ -149,7 +156,16 @@ class RAGPipeline:
         ]
     
     async def _get_embedding(self, text: str) -> List[float]:
-        """Generiši embedding vektor za tekst."""
+        """Generiši embedding vektor za tekst sa fallback-om."""
+        if not self.client:
+            # Fallback: Jednostavan deterministički vektor za dev bez API ključa
+            # U produkciji OPENAI_API_KEY mora biti setovan
+            import hashlib
+            hash_digest = hashlib.sha256(text.encode()).digest()
+            # Generiši 1536-dimenzionalni vektor iz hash-a (repeating pattern)
+            base = [float(b) / 255.0 - 0.5 for b in hash_digest]  # 32 floata
+            return (base * 48)[:1536]  # Repeat do 1536 dim
+        
         try:
             response = self.client.embeddings.create(
                 input=text,

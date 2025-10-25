@@ -55,13 +55,20 @@ async def search(
         
         citations = []
         for chunk, score in results:
+            # Koristi chunk_metadata iz JSON kolone
+            meta = chunk.chunk_metadata
+            if meta is None:
+                meta = {}
+            elif not isinstance(meta, dict):
+                meta = dict(meta) if hasattr(meta, '__iter__') else {}
+            
             citations.append(Citation(
                 chunk_id=str(chunk.id),
                 document_id=str(chunk.document_id),
                 filename=chunk.document.filename,
                 content=str(chunk.content),
                 score=score,
-                metadata=chunk.metadata or {}
+                metadata=meta
             ))
         
         return SearchResponse(
