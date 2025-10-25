@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import text, func
+from sqlalchemy import text, func, select, desc
 from typing import List, Tuple
 from app.models.chunk import DocumentChunk
 from app.models.document import Document
+from pgvector.sqlalchemy import Vector
 import uuid
 
 
@@ -26,21 +27,20 @@ class SearchService:
         return results
     
     def _vector_search(self, embedding: List[float], top_k: int) -> List[Tuple[DocumentChunk, float]]:
-        embedding_str = f"[{','.join(map(str, embedding))}]"
+        from pgvector.sqlalchemy import Vector
         
-        query = text("""
-            SELECT dc.*, 
-                   1 - (dc.embedding <=> :embedding::vector) as similarity
+        embedding_str = str(embedding)
+        
+        query_sql = text("""
+            SELECT dc.id, dc.document_id, dc.content, dc.chunk_index, dc.metadata, dc.created_at,
+                   1 - (dc.embedding <=> CAST(:embedding AS vector)) as similarity
             FROM document_chunks dc
             WHERE dc.embedding IS NOT NULL
-            ORDER BY dc.embedding <=> :embedding::vector
-            LIMIT :limit
+            ORDER BY dc.embedding <=> CAST(:embedding AS vector)
+            LIMIT :top_k
         """)
         
-        result = self.db.execute(
-            query,
-            {"embedding": embedding_str, "limit": top_k}
-        )
+        result = self.db.execute(query_sql, {"embedding": embedding_str, "top_k": top_k})
         
         chunks_with_scores = []
         for row in result:
