@@ -12,7 +12,6 @@ from app.models.document import Document
 from app.models.external_source import IngestJob
 from app.schemas.document import DocumentResponse, DocumentListResponse, AgentLog
 from app.services.pipeline import DocumentPipeline
-from app.agents.types import ProcessingContext
 from app.core.config import settings
 import os
 
@@ -63,24 +62,30 @@ async def upload_document(
     
     try:
         pipeline = DocumentPipeline(db)
-        context = ProcessingContext(
+        
+        context = await pipeline.process_document(
             document_id=str(document.id),
             file_path=str(file_path),
             filename=file.filename,
-            mime_type=file.content_type
+            user_id=current_user.id
         )
         
-        context = await pipeline.process_document(context)
-        
-        document.status = "ready"
+        document.status = "ready" if not context.errors else "error"
         document.doc_metadata = {
-            "chunks": len(context.chunks),
-            "text_length": len(context.text_content) if context.text_content else 0,
-            "indexed_chunks": context.metadata.get('indexed_chunks', 0)
+            "chunks": len([c for c in context.chunks if not c.is_duplicate]),
+            "total_chunks": len(context.chunks),
+            "duplicates": len([c for c in context.chunks if c.is_duplicate]),
+            "doc_type": context.doc_type,
+            "entities": len(context.entities),
+            "tables": len(context.tables),
+            "blocks": len(context.blocks),
+            **context.extracted_metadata,
+            **context.metrics
         }
         
-        job.status = "completed"
-        job.logs = [result.to_dict() for result in context.agent_results]
+        job.status = "completed" if not context.errors else "failed"
+        job.logs = context.agent_logs
+        job.error = "; ".join(context.errors) if context.errors else None
         job.completed_at = db.execute(text("SELECT NOW()")).scalar()
         
         db.commit()

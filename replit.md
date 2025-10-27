@@ -6,6 +6,20 @@
 
 ## Recent Changes
 
+### October 27, 2025 - DAG Mini-Agent Ingest Architecture 🚀
+**Refaktorisan document ingest pipeline u DAG (Directed Acyclic Graph) arhitekturu:**
+- **7 specijalizovanih mini-agenata** sa dependency resolution i parallel execution
+- **ExtractAgent**: PDF/DOCX/OCR/CSV/Excel ekstrakcija teksta, blokova i tabela
+- **StructureAgent**: LLM segmentacija + heuristički fallback, pametni chunking sa sentence boundaries
+- **MetaAgent**: LLM NER + regex patterns (datumi, email, telefoni, JMBG, šifre, iznosi)
+- **TableAgent**: CSV/JSON export, opciona LLM enhancement header-a i tipova kolona
+- **DedupAgent**: MinHash/LSH deduplikacija chunk-ova (similarity threshold 0.85)
+- **PolicyAgent**: PII maskiranje (email, telefoni, JMBG, kartice, IBAN) sa Luhn validacijom
+- **IndexAgent**: Batch embeddings, skip duplicates, database ANALYZE hint
+- **Fallback mode**: Svi agenti rade bez LLM-a putem heuristika
+- **Inkrementalni logging**: Svaki agent piše logove sa timestampovima u ingest_jobs.logs
+- **Performance**: DAG omogućava paralelizaciju nezavisnih agenata (Extract + Table može paralelno)
+
 ### October 25, 2025 - Multi-Agent RAG Query Pipeline
 **Implementiran napredni LLM multi-agentni sistem za chat/query funkcionalnost:**
 - 5 novih agenata: PlannerAgent, RewriterAgent, GenerationAgent, JudgeAgent, SummarizerAgent
@@ -36,15 +50,33 @@ Multi-RAG is a comprehensive Retrieval-Augmented Generation (RAG) system featuri
 
 ## Features
 
-### 1. Document Processing Pipeline
-Multi-agent system that processes documents through specialized agents:
+### 1. Document Processing Pipeline - DAG Mini-Agent Architecture
+**Napredni DAG (Directed Acyclic Graph) sistem sa 7 specijalizovanih mini-agenata:**
 
-- **MimeDetectAgent**: Detects file type and MIME type
-- **TextExtractAgent**: Extracts text from PDF, DOCX, CSV, Excel
-- **OCRAgent**: Optical character recognition for scanned documents and images
-- **ChunkingAgent**: Splits text into searchable chunks (1000 chars with 200 char overlap)
-- **EmbeddingAgent**: Generates OpenAI embeddings (text-embedding-ada-002)
-- **IndexingAgent**: Stores chunks with embeddings in pgvector
+**Execution Flow** (sa dependency order-om):
+```
+ExtractAgent (PDF/DOCX/OCR/CSV/Excel → tekst + blokovi + tabele)
+    ↓
+StructureAgent (LLM/heuristika → segmenti + pametni chunks)
+    ↓
+MetaAgent (LLM/regex → tip dokumenta + NER + entiteti)
+    ↓  
+TableAgent (heuristika/LLM → CSV/JSON export + enhanced headers)
+    ↓
+DedupAgent (MinHash/LSH → deduplikacija chunk-ova)
+    ↓
+PolicyAgent (regex + Luhn → PII maskiranje)
+    ↓
+IndexAgent (batch embeddings → database upis + ANALYZE)
+```
+
+**Ključne karakteristike:**
+- **Paralelizacija**: DAG omogućava parallel execution nezavisnih agenata
+- **LLM Fallback**: Svi agenti rade i bez OpenAI API ključa (heuristički mode)
+- **PII Sigurnost**: Automatsko maskiranje email-ova, telefona, JMBG, kartice, IBAN
+- **Deduplication**: MinHash/LSH pronalazi near-duplicate chunks (85% similarity)
+- **Smart Chunking**: Sentence-aware boundaries, overlap za kontekst
+- **Inkrementalni Logovi**: Svaki agent piše status u ingest_jobs.logs sa timestamps
 
 ### 2. SQL Data Ingestion (SQLIngestAgent)
 Connect to external databases and ingest data:
@@ -203,8 +235,21 @@ multi-rag/
 │   │   ├── models/ (SQLAlchemy models)
 │   │   ├── schemas/ (Pydantic schemas)
 │   │   ├── api/ (FastAPI routes)
-│   │   ├── services/ (rag_pipeline, search, llm_client, prompting)
-│   │   └── agents/ (planner, rewriter, generation, judge, summarizer + ingest agents)
+│   │   ├── services/ (rag_pipeline, search, llm_client, prompting, pipeline)
+│   │   └── agents/
+│   │       ├── ingest/ (DAG mini-agents: extract, structure, meta, table, dedup, policy, index)
+│   │       │   ├── __init__.py
+│   │       │   ├── types.py (IngestContext, TextBlock, DocumentSegment, etc.)
+│   │       │   ├── base.py (IngestAgent base class)
+│   │       │   ├── dag.py (IngestDAG orchestrator)
+│   │       │   ├── extract.py (ExtractAgent)
+│   │       │   ├── structure.py (StructureAgent)
+│   │       │   ├── meta.py (MetaAgent)
+│   │       │   ├── table.py (TableAgent)
+│   │       │   ├── dedup.py (DedupAgent - MinHash/LSH)
+│   │       │   ├── policy.py (PolicyAgent - PII masking)
+│   │       │   └── index.py (IndexAgent)
+│   │       └── (planner, rewriter, generation, judge, summarizer)
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
