@@ -70,22 +70,19 @@ async def upload_document(
             user_id=current_user.id
         )
         
-        document.status = "ready" if not context.errors else "error"
+        document.status = "ready"
         document.doc_metadata = {
-            "chunks": len([c for c in context.chunks if not c.is_duplicate]),
-            "total_chunks": len(context.chunks),
-            "duplicates": len([c for c in context.chunks if c.is_duplicate]),
-            "doc_type": context.doc_type,
-            "entities": len(context.entities),
-            "tables": len(context.tables),
-            "blocks": len(context.blocks),
-            **context.extracted_metadata,
-            **context.metrics
+            "chunks": len(context.chunks),
+            "chunk_size": context.metadata.get("chunk_size", 1000),
+            "chunk_overlap": context.metadata.get("chunk_overlap", 200),
+            "indexed_chunks": context.metadata.get("indexed_chunks", 0),
+            "mime_type": context.metadata.get("mime_type", ""),
+            "file_size": context.metadata.get("file_size", 0)
         }
         
-        job.status = "completed" if not context.errors else "failed"
-        job.logs = context.agent_logs
-        job.error = "; ".join(context.errors) if context.errors else None
+        job.status = "completed"
+        job.logs = [result.to_dict() for result in context.agent_results]
+        job.error = None
         job.completed_at = db.execute(text("SELECT NOW()")).scalar()
         
         db.commit()
