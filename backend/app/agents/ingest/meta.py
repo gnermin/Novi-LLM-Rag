@@ -46,7 +46,14 @@ class MetaAgent(IngestAgent):
     
     async def _llm_detect_doc_type(self, context: IngestContext):
         """LLM-bazirana detekcija tipa dokumenta"""
+        if get_llm_client is None:
+            await self._heuristic_detect_doc_type(context)
+            return
+        
         llm = get_llm_client()
+        if llm is None:
+            await self._heuristic_detect_doc_type(context)
+            return
         
         # Sample text for classification
         sample = context.raw_text[:2000]
@@ -64,7 +71,8 @@ Odgovori sa JSON:
 }}"""
         
         try:
-            response = await llm.chat_completion(
+            response = llm.chat.completions.create(
+                model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 max_tokens=300
@@ -72,6 +80,9 @@ Odgovori sa JSON:
             
             import json
             content = response.choices[0].message.content
+            
+            if not content:
+                raise ValueError("Empty LLM response")
             
             # Clean response
             if "```json" in content:
@@ -112,7 +123,14 @@ Odgovori sa JSON:
     
     async def _llm_extract_entities(self, context: IngestContext):
         """LLM-bazirana NER"""
+        if get_llm_client is None:
+            await self._heuristic_extract_entities(context)
+            return
+        
         llm = get_llm_client()
+        if llm is None:
+            await self._heuristic_extract_entities(context)
+            return
         
         # Sample for NER
         sample = context.raw_text[:2500]
@@ -131,7 +149,8 @@ Odgovori sa JSON:
 Fokusiraj se na: imena, kompanije, datume, novčane iznose, lokacije, šifre/brojeve dokumenata."""
         
         try:
-            response = await llm.chat_completion(
+            response = llm.chat.completions.create(
+                model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=1000
@@ -139,6 +158,9 @@ Fokusiraj se na: imena, kompanije, datume, novčane iznose, lokacije, šifre/bro
             
             import json
             content = response.choices[0].message.content
+            
+            if not content:
+                raise ValueError("Empty LLM response")
             
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]

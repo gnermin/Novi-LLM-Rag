@@ -45,7 +45,14 @@ class StructureAgent(IngestAgent):
     
     async def _llm_segmentation(self, context: IngestContext):
         """LLM-bazirana segmentacija sa strukturom"""
+        if get_llm_client is None:
+            await self._heuristic_segmentation(context)
+            return
+        
         llm = get_llm_client()
+        if llm is None:
+            await self._heuristic_segmentation(context)
+            return
         
         # Combine first few blocks for structure detection
         sample_text = "\n\n".join([block.text for block in context.blocks[:10]])[:3000]
@@ -67,7 +74,8 @@ Pravila:
 - Sažmi svaki segment u 1-2 rečenice"""
         
         try:
-            response = await llm.chat_completion(
+            response = llm.chat.completions.create(
+                model=settings.CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=1500
@@ -76,6 +84,9 @@ Pravila:
             # Parse LLM response (basic JSON extraction)
             import json
             content = response.choices[0].message.content
+            
+            if not content:
+                raise ValueError("Empty LLM response")
             
             # Extract JSON from markdown code blocks if present
             if "```json" in content:

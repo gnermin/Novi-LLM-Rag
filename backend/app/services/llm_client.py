@@ -8,6 +8,11 @@ except Exception:
     _client = None
 
 
+def get_llm_client():
+    """Vrati OpenAI client ili None ako nije dostupan"""
+    return _client
+
+
 def llm_complete(prompt: str, model: Optional[str] = None, n: int = 1) -> List[str]:
     """
     Vrati listu n završetaka. Ako OpenAI nije dostupan, vrati stub odgovore.
