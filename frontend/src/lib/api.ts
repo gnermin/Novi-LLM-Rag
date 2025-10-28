@@ -1,52 +1,62 @@
+// src/lib/api.ts
 import axios from 'axios'
-import type { ChatResponse, SearchResponse } from '../types/chat'
 
-const api = axios.create({
-  baseURL: '',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+const api = axios.create({ baseURL: '' })
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
+// --- AUTH ---
 export const auth = {
   signup: (email: string, password: string) =>
-    api.post('/auth/signup', { email, password }),
+    api.post('/api/auth/signup', { email, password }, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
   login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
+    api.post('/api/auth/login', { email, password }, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
 }
 
+// --- DOCUMENTS ---
 export const documents = {
-  upload: (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return api.post('/documents/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+  upload: (file: File, sourceName?: string) => {
+    const fd = new FormData()
+    fd.append('file', file) // ključ MORA biti "file"
+    if (sourceName) fd.append('source_name', sourceName)
+    return api.post('/api/documents/upload', fd) // bez Content-Type
   },
-  list: () => api.get('/documents'),
-  get: (id: string) => api.get(`/documents/${id}`),
-  delete: (id: string) => api.delete(`/documents/${id}`),
-  deleteAll: () => api.delete('/documents'),
+  list: () => api.get('/api/documents'),
+  get: (id: string) => api.get(`/api/documents/${id}`),
+  delete: (id: string) => api.delete(`/api/documents/${id}`),
+  deleteAll: () => api.delete('/api/documents'),
 }
 
+// --- CHAT/SEARCH ---
 export const chat = {
-  query: (query: string, top_k: number = 5) =>
-    api.post<ChatResponse>('/chat', { query, top_k }),
-  search: (query: string, top_k: number = 5) =>
-    api.post<SearchResponse>('/search', { query, top_k }),
+  query: (query: string, top_k = 5) =>
+    api.post('/api/chat', { query, top_k }, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  search: (query: string, top_k = 5) =>
+    api.post('/api/search', { query, top_k }, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
 }
 
+// --- INGEST (traži ga Settings.tsx) ---
 export const ingest = {
-  sql: (source_name: string, query: string, connection_string?: string) =>
-    api.post('/ingest/sql', { source_name, query, connection_string }),
+  sql: (sourceName: string, query: string, connectionString?: string) =>
+    api.post('/api/ingest/sql', {
+      source_name: sourceName,
+      query,
+      connection_string: connectionString,
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
 }
 
 export default api
