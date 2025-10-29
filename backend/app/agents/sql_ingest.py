@@ -15,14 +15,14 @@ class SQLIngestAgent(BaseAgent):
     
     async def process(self, context: ProcessingContext) -> ProcessingContext:
         if not self.connection_string:
-            raise Exception("External database connection string not configured")
+            raise Exception("Konekcija na bazu podataka nije pružena")
         
         if not self.query:
-            raise Exception("SQL query not provided")
+            raise Exception("SQL upit nije pružen")
         
         if not self._is_safe_query(self.query):
-            raise Exception("Only SELECT queries are allowed for security reasons")
-        
+            raise Exception("Samo SELECT upiti su dozvoljeni iz sigurnosnih razloga")
+
         engine = create_engine(self.connection_string)
         
         try:
@@ -32,8 +32,8 @@ class SQLIngestAgent(BaseAgent):
                 columns = result.keys()
                 
                 text_content = []
-                text_content.append(f"SQL Query Results from: {context.filename}")
-                text_content.append(f"Columns: {', '.join(columns)}")
+                text_content.append(f"SQL Upit rezultati: {context.filename}")
+                text_content.append(f"Kolone: {', '.join(columns)}")
                 text_content.append("")
                 
                 for row in rows[:self.batch_size]:
@@ -47,7 +47,7 @@ class SQLIngestAgent(BaseAgent):
                 context.metadata['sql_query'] = self.query
                 
         except Exception as e:
-            raise Exception(f"SQL ingestion failed: {str(e)}")
+            raise Exception(f"SQL ingestion nije prošlo: {str(e)}")
         finally:
             engine.dispose()
         

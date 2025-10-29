@@ -5,6 +5,7 @@ services:
       POSTGRES_DB: multirag
       POSTGRES_USER: raguser
       POSTGRES_PASSWORD: ragpass
+    restart: unless-stopped
     volumes:
       - multirag_pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
@@ -33,7 +34,7 @@ services:
       - "5000:5000"
     volumes:
       - ./uploads:/app/uploads
-    
+    restart: unless-stopped
     healthcheck:
       test:
         ["CMD-SHELL",
@@ -53,6 +54,7 @@ services:
     ports:
       - "80:80"        # javno izlažemo samo Nginx (frontend)
     # nema potrebe za env ovdje, jer koristimo /api relativnu putanju
+    restart: unless-stopped
 
 volumes:
   multirag_pgdata:
