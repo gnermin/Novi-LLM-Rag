@@ -1,1 +1,1 @@
-# Multi-agent LLM components for query processing
+# Multi-agent LLM komponente za backend aplikaciju.
